@@ -27,7 +27,7 @@ SemaphoreHandle_t wifiBusySemaphoreMutexHandle;
 TaskHandle_t WIFI_Handle = NULL, IWDG_Handle = NULL, MQTT_Handle = NULL;
 
 
-
+//this is the app start
 void app_os_var_init()
 {
 
