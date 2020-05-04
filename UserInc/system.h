@@ -11,11 +11,14 @@
 #ifndef USERINC_SYSTEM_H_
 #define USERINC_SYSTEM_H_
 
+#include "constant.h"
+
+
 
 typedef struct _WIFI_USART_DATA
 {
 	uint8_t index;
-	char netUsartRxBuffer[2][NET_USART_REC_LEN];
+	char netUsartRxBuffer[2][WIFI_RX_BUF_SIZE];
 
 } WifiUsartData_S;
 

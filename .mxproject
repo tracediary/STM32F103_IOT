@@ -1,7 +1,7 @@
 [PreviousGenFiles]
-HeaderPath=E:/fire/project/stm32_iot/Inc
+HeaderPath=E:/atollicGit/STM32F103_IOT/Inc
 HeaderFiles=gpio.h;dma.h;FreeRTOSConfig.h;usart.h;stm32f1xx_it.h;stm32f1xx_hal_conf.h;main.h;
-SourcePath=E:/fire/project/stm32_iot/Src
+SourcePath=E:/atollicGit/STM32F103_IOT/Src
 SourceFiles=gpio.c;dma.c;freertos.c;usart.c;stm32f1xx_it.c;stm32f1xx_hal_msp.c;main.c;
 
 [PreviousLibFiles]

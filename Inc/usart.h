@@ -41,7 +41,10 @@ void MX_USART2_UART_Init(void);
 void MX_USART3_UART_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-
+uint8_t wifi_uart_send(uint8_t *buffer, uint32_t size);
+void UART3_RxIdleCallback();
+void UART2_RxIdleCallback();
+void WIFI_UART_Deinit();
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus

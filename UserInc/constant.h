@@ -22,8 +22,10 @@
 #define WIFI_TX_BUF_SIZE				(WIFI_RX_BUF_SIZE * 2)
 #define WIFI_UART						USART3
 
+#define WIFI_UART_DELAY					1000
+
 #define EVENTBIT_WIFI_UART_REC			(1<<0)
-#define EVENTBIT_WIFI_UART_TC			(1<<0)
+#define EVENTBIT_WIFI_UART_TC			(1<<1)
 
 /**********DEBUG UART2 define************/
 #define DEBUG_RX_BUF_SIZE				100

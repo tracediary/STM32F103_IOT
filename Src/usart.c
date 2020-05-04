@@ -27,8 +27,9 @@
 #include "task.h"
 #include "event_groups.h"
 #include "constant.h"
+#include "system.h"
 
-uint8_t wifi_usart3_rx[WIFI_RX_BUF_SIZE];
+extern WifiUsartData_S wifiData;
 uint8_t debug_usart2_rx[DEBUG_RX_BUF_SIZE];
 
 UART_HandleTypeDef *wifiUart;
@@ -36,6 +37,7 @@ UART_HandleTypeDef *debugUart;
 
 extern EventGroupHandle_t debugEventHandler;
 extern EventGroupHandle_t wifiEventHandler;
+extern uint8_t wifiTxData[WIFI_TX_BUF_SIZE];
 
 /* USER CODE END 0 */
 
@@ -96,11 +98,11 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
   /* USER CODE END USART2_MspInit 0 */
     /* USART2 clock enable */
     __HAL_RCC_USART2_CLK_ENABLE();
-  
+
     __HAL_RCC_GPIOA_CLK_ENABLE();
-    /**USART2 GPIO Configuration    
+    /**USART2 GPIO Configuration
     PA2     ------> USART2_TX
-    PA3     ------> USART2_RX 
+    PA3     ------> USART2_RX
     */
     GPIO_InitStruct.Pin = DEBUG_TX_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -145,6 +147,9 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
 
     __HAL_LINKDMA(uartHandle,hdmatx,hdma_usart2_tx);
 
+    /* USART2 interrupt Init */
+    HAL_NVIC_SetPriority(USART2_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(USART2_IRQn);
   /* USER CODE BEGIN USART2_MspInit 1 */
 
 		__HAL_UART_ENABLE_IT(uartHandle, UART_IT_IDLE);
@@ -159,11 +164,11 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
   /* USER CODE END USART3_MspInit 0 */
     /* USART3 clock enable */
     __HAL_RCC_USART3_CLK_ENABLE();
-  
+
     __HAL_RCC_GPIOB_CLK_ENABLE();
-    /**USART3 GPIO Configuration    
+    /**USART3 GPIO Configuration
     PB10     ------> USART3_TX
-    PB11     ------> USART3_RX 
+    PB11     ------> USART3_RX
     */
     GPIO_InitStruct.Pin = WIFI_TX_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -208,9 +213,12 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
 
     __HAL_LINKDMA(uartHandle,hdmatx,hdma_usart3_tx);
 
+    /* USART3 interrupt Init */
+    HAL_NVIC_SetPriority(USART3_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(USART3_IRQn);
   /* USER CODE BEGIN USART3_MspInit 1 */
 		//__HAL_UART_ENABLE_IT(uartHandle, UART_IT_IDLE);
-		HAL_UART_Receive_DMA(uartHandle, wifi_usart3_rx, WIFI_RX_BUF_SIZE);
+		HAL_UART_Receive_DMA(uartHandle, wifiData.netUsartRxBuffer[wifiData.index], WIFI_RX_BUF_SIZE);
   /* USER CODE END USART3_MspInit 1 */
   }
 }
@@ -225,16 +233,19 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
   /* USER CODE END USART2_MspDeInit 0 */
     /* Peripheral clock disable */
     __HAL_RCC_USART2_CLK_DISABLE();
-  
-    /**USART2 GPIO Configuration    
+
+    /**USART2 GPIO Configuration
     PA2     ------> USART2_TX
-    PA3     ------> USART2_RX 
+    PA3     ------> USART2_RX
     */
     HAL_GPIO_DeInit(GPIOA, DEBUG_TX_Pin|DEBUG_RX_Pin);
 
     /* USART2 DMA DeInit */
     HAL_DMA_DeInit(uartHandle->hdmarx);
     HAL_DMA_DeInit(uartHandle->hdmatx);
+
+    /* USART2 interrupt Deinit */
+    HAL_NVIC_DisableIRQ(USART2_IRQn);
   /* USER CODE BEGIN USART2_MspDeInit 1 */
 
   /* USER CODE END USART2_MspDeInit 1 */
@@ -246,25 +257,28 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
   /* USER CODE END USART3_MspDeInit 0 */
     /* Peripheral clock disable */
     __HAL_RCC_USART3_CLK_DISABLE();
-  
-    /**USART3 GPIO Configuration    
+
+    /**USART3 GPIO Configuration
     PB10     ------> USART3_TX
-    PB11     ------> USART3_RX 
+    PB11     ------> USART3_RX
     */
     HAL_GPIO_DeInit(GPIOB, WIFI_TX_Pin|WIFI_RX_Pin);
 
     /* USART3 DMA DeInit */
     HAL_DMA_DeInit(uartHandle->hdmarx);
     HAL_DMA_DeInit(uartHandle->hdmatx);
+
+    /* USART3 interrupt Deinit */
+    HAL_NVIC_DisableIRQ(USART3_IRQn);
   /* USER CODE BEGIN USART3_MspDeInit 1 */
 
   /* USER CODE END USART3_MspDeInit 1 */
   }
-} 
+}
 
 /* USER CODE BEGIN 1 */
 
-void deInit_wifi_UART()
+void WIFI_UART_Deinit()
 {
 	HAL_UART_DeInit(wifiUart);
 }
@@ -296,19 +310,69 @@ void UART2_RxIdleCallback()
 	}
 }
 
+void UART3_RxIdleCallback()
+{
+	BaseType_t xHigherPriorityTaskWoken;
+
+	if (__HAL_UART_GET_FLAG(wifiUart, UART_FLAG_IDLE))
+	{
+		__HAL_UART_CLEAR_IDLEFLAG(wifiUart)
+		;
+
+		HAL_UART_DMAStop(wifiUart);
+
+		wifiData.index = !(wifiData.index);
+		HAL_UART_Receive_DMA(wifiUart, wifiData.netUsartRxBuffer[wifiData.index], DEBUG_RX_BUF_SIZE);
+
+		if (debugEventHandler != NULL)
+		{
+			xEventGroupSetBitsFromISR(wifiEventHandler, EVENTBIT_WIFI_UART_REC, &xHigherPriorityTaskWoken);
+			portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+		}
+
+	}
+}
+
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
 	BaseType_t xHigherPriorityTaskWoken;
 	if (huart->Instance == DEBUG_UART)
 	{
-		xEventGroupSetBitsFromISR(wifiEventHandler, EVENTBIT_DEBUG_UART_TC, &xHigherPriorityTaskWoken);
-		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 	}
 	else if (huart->Instance == WIFI_UART)
 	{
-
+		xEventGroupSetBitsFromISR(wifiEventHandler, EVENTBIT_DEBUG_UART_TC, &xHigherPriorityTaskWoken);
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 	}
 }
+
+/**
+ * TODO
+ */
+uint8_t wifi_uart_send(uint8_t *buffer, uint32_t size)
+{
+	EventBits_t eventValue;
+
+	sprintf(wifiTxData, "%s%s", buffer, "\r\n");
+
+	eventValue = xEventGroupWaitBits(wifiEventHandler, EVENTBIT_WIFI_UART_TC, pdFALSE, pdFALSE, WIFI_UART_DELAY);
+
+	if ((eventValue & EVENTBIT_WIFI_UART_TC) != 0)
+	{
+		xEventGroupClearBits(wifiEventHandler, EVENTBIT_DEBUG_UART_TC);
+		HAL_UART_Transmit_DMA(wifiUart, wifiTxData, (size + 2));
+	}
+	else
+	{
+		printf("send to wifi failed\n");
+	}
+
+	return 0;
+
+}
+
+
+
 
 #include "stdio.h"
 
