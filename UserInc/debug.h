@@ -5,7 +5,7 @@
  *      Author: Jason C
  *     version: V1.0.1
  ************************************************************************
- *	 attention: GPLv2, free software
+ *	 attention: GPLv3, free software
  */
 
 #ifndef USERINC_DEBUG_H_

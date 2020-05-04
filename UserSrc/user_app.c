@@ -5,7 +5,7 @@
  *      Author: Jason C
  *     version: V1.0.1
  ************************************************************************
- *	 attention: GPLv2, free software
+ *	 attention: GPLv3, free software
  */
 
 #include "debug.h"
