@@ -22,22 +22,21 @@
 
 /* USER CODE BEGIN 0 */
 
-#include <stdlib.h>
-#include "FreeRTOS.h"
-#include "task.h"
-#include "event_groups.h"
-#include "constant.h"
 #include "system.h"
+#include "wifi.h"
 
 extern WifiUsartData_S wifiData;
 uint8_t debug_usart2_rx[DEBUG_RX_BUF_SIZE];
+uint8_t wifiTxData[WIFI_TX_BUF_SIZE];
 
 UART_HandleTypeDef *wifiUart;
 UART_HandleTypeDef *debugUart;
 
 extern EventGroupHandle_t debugEventHandler;
-extern EventGroupHandle_t wifiEventHandler;
-extern uint8_t wifiTxData[WIFI_TX_BUF_SIZE];
+
+extern TaskHandle_t DIST_Handle;
+uint8_t rxindex = 0;
+uint8_t rxdata[2][100] = { 0 };
 
 /* USER CODE END 0 */
 
@@ -148,12 +147,15 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     __HAL_LINKDMA(uartHandle,hdmatx,hdma_usart2_tx);
 
     /* USART2 interrupt Init */
-    HAL_NVIC_SetPriority(USART2_IRQn, 5, 0);
+    HAL_NVIC_SetPriority(USART2_IRQn, 8, 0);
     HAL_NVIC_EnableIRQ(USART2_IRQn);
   /* USER CODE BEGIN USART2_MspInit 1 */
 
 		__HAL_UART_ENABLE_IT(uartHandle, UART_IT_IDLE);
 		debugUart = &huart2;
+		//HAL_UART_Receive_DMA(&huart2, rxdata[rxindex], DEBUG_RX_BUF_SIZE);
+
+		HAL_UART_Receive_DMA(&huart2, debug_usart2_rx, DEBUG_RX_BUF_SIZE);
 
   /* USER CODE END USART2_MspInit 1 */
   }
@@ -214,11 +216,12 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     __HAL_LINKDMA(uartHandle,hdmatx,hdma_usart3_tx);
 
     /* USART3 interrupt Init */
-    HAL_NVIC_SetPriority(USART3_IRQn, 5, 0);
+    HAL_NVIC_SetPriority(USART3_IRQn, 6, 0);
     HAL_NVIC_EnableIRQ(USART3_IRQn);
   /* USER CODE BEGIN USART3_MspInit 1 */
-		//__HAL_UART_ENABLE_IT(uartHandle, UART_IT_IDLE);
-		HAL_UART_Receive_DMA(uartHandle, wifiData.netUsartRxBuffer[wifiData.index], WIFI_RX_BUF_SIZE);
+		__HAL_UART_ENABLE_IT(uartHandle, UART_IT_IDLE);
+//		HAL_UART_Receive_DMA(uartHandle, wifiData.netUsartRxBuffer[wifiData.index], WIFI_RX_BUF_SIZE);
+		wifiUart = &huart3;
   /* USER CODE END USART3_MspInit 1 */
   }
 }
@@ -298,15 +301,22 @@ void UART2_RxIdleCallback()
 		;
 
 		HAL_UART_DMAStop(debugUart);
-
 		HAL_UART_Receive_DMA(debugUart, debug_usart2_rx, DEBUG_RX_BUF_SIZE);
-
+#if 0
+		rxindex = !rxindex;
+		memset(rxdata[rxindex], 0, 100);
+		HAL_UART_Receive_DMA(&huart2, rxdata[rxindex], DEBUG_RX_BUF_SIZE);
+#endif
 		if (debugEventHandler != NULL)
 		{
 			xEventGroupSetBitsFromISR(debugEventHandler, EVENTBIT_DEBUG_UART_REC, &xHigherPriorityTaskWoken);
 			portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 		}
 
+#if 0
+		HAL_UART_Transmit_DMA(wifiUart, rxdata[!rxindex], strlen(rxdata[!rxindex]));
+		//printf("get the data %s", rxdata[!rxindex]);
+#endif
 	}
 }
 
@@ -321,15 +331,22 @@ void UART3_RxIdleCallback()
 
 		HAL_UART_DMAStop(wifiUart);
 
-		wifiData.index = !(wifiData.index);
-		HAL_UART_Receive_DMA(wifiUart, wifiData.netUsartRxBuffer[wifiData.index], DEBUG_RX_BUF_SIZE);
 
-		if (debugEventHandler != NULL)
+		memset(wifiData.netUsartRxBuffer[wifiData.index], 0, DEBUG_RX_BUF_SIZE);
+		HAL_UART_Receive_DMA(wifiUart, wifiData.netUsartRxBuffer[wifiData.index], DEBUG_RX_BUF_SIZE);
+		wifiData.index = !(wifiData.index);
+
+		if (DIST_Handle != NULL)
 		{
-			xEventGroupSetBitsFromISR(wifiEventHandler, EVENTBIT_WIFI_UART_REC, &xHigherPriorityTaskWoken);
+			vTaskNotifyGiveFromISR(DIST_Handle, &xHigherPriorityTaskWoken);
 			portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 		}
 
+#if 0
+		xEventGroupClearBitsFromISR(debugEventHandler, EVENTBIT_DEBUG_UART_TC);
+		HAL_UART_Transmit_DMA(debugUart, wifiData.netUsartRxBuffer[wifiData.index],
+				strlen(wifiData.netUsartRxBuffer[wifiData.index]));
+#endif
 	}
 }
 
@@ -338,10 +355,12 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 	BaseType_t xHigherPriorityTaskWoken;
 	if (huart->Instance == DEBUG_UART)
 	{
+		xEventGroupSetBitsFromISR(debugEventHandler, EVENTBIT_DEBUG_UART_TC, &xHigherPriorityTaskWoken);
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 	}
 	else if (huart->Instance == WIFI_UART)
 	{
-		xEventGroupSetBitsFromISR(wifiEventHandler, EVENTBIT_DEBUG_UART_TC, &xHigherPriorityTaskWoken);
+		xEventGroupSetBitsFromISR(wifiEventHandler, EVENTBIT_WIFI_UART_TC, &xHigherPriorityTaskWoken);
 		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 	}
 }
@@ -353,14 +372,14 @@ uint8_t wifi_uart_send(uint8_t *buffer, uint32_t size)
 {
 	EventBits_t eventValue;
 
-	sprintf(wifiTxData, "%s%s", buffer, "\r\n");
-
-	eventValue = xEventGroupWaitBits(wifiEventHandler, EVENTBIT_WIFI_UART_TC, pdFALSE, pdFALSE, WIFI_UART_DELAY);
+	eventValue = xEventGroupWaitBits(wifiEventHandler, EVENTBIT_WIFI_UART_TC, pdFALSE, pdFALSE,
+			(WIFI_UART_WAITTIME * 2));
 
 	if ((eventValue & EVENTBIT_WIFI_UART_TC) != 0)
 	{
+		memcpy(wifiTxData, buffer, size);
 		xEventGroupClearBits(wifiEventHandler, EVENTBIT_DEBUG_UART_TC);
-		HAL_UART_Transmit_DMA(wifiUart, wifiTxData, (size + 2));
+		HAL_UART_Transmit_DMA(wifiUart, wifiTxData, size);
 	}
 	else
 	{

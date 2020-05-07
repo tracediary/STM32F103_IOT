@@ -59,15 +59,16 @@
 #define configUSE_TICK_HOOK                      1
 #define configCPU_CLOCK_HZ                       ( SystemCoreClock )
 #define configTICK_RATE_HZ                       ((TickType_t)1000)
-#define configMAX_PRIORITIES                     ( 12 )
+#define configMAX_PRIORITIES                     ( 8 )
 #define configMINIMAL_STACK_SIZE                 ((uint16_t)128)
-#define configTOTAL_HEAP_SIZE                    ((size_t)3072)
+#define configTOTAL_HEAP_SIZE                    ((size_t)20480)
 #define configMAX_TASK_NAME_LEN                  ( 16 )
 #define configUSE_16_BIT_TICKS                   0
 #define configUSE_MUTEXES                        1
 #define configQUEUE_REGISTRY_SIZE                8
 #define configUSE_RECURSIVE_MUTEXES              1
 #define configUSE_MALLOC_FAILED_HOOK             1
+#define configUSE_DAEMON_TASK_STARTUP_HOOK       1
 #define configUSE_APPLICATION_TASK_TAG           1
 #define configUSE_COUNTING_SEMAPHORES            1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION  1
@@ -103,6 +104,7 @@ to exclude the API function. */
 #define INCLUDE_xTaskGetCurrentTaskHandle   1
 #define INCLUDE_eTaskGetState               1
 #define INCLUDE_xTaskAbortDelay             1
+#define INCLUDE_xTaskGetHandle              1
 
 /* Cortex-M specific definitions. */
 #ifdef __NVIC_PRIO_BITS
@@ -132,7 +134,7 @@ See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 /* Normal assert() semantics without relying on the provision of an assert.h
 header file. */
 /* USER CODE BEGIN 1 */
-#define configASSERT( x ) if ((x) == 0) {taskDISABLE_INTERRUPTS(); for( ;; );} 
+#define configASSERT( x ) if ((x) == 0) {taskDISABLE_INTERRUPTS(); for( ;; );}
 /* USER CODE END 1 */
 
 /* Definitions that map the FreeRTOS port interrupt handlers to their CMSIS

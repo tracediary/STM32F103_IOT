@@ -12,15 +12,64 @@
 #define USERINC_SYSTEM_H_
 
 #include "constant.h"
+#include "debug.h"
+#include "stdio.h"
+#include "string.h"
+#include <stdbool.h>
 
-
+/***FreeRTOS var define**************************************************/
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+#include "timers.h"
+#include "event_groups.h"
 
 typedef struct _WIFI_USART_DATA
 {
 	uint8_t index;
-	char netUsartRxBuffer[2][WIFI_RX_BUF_SIZE];
+	uint8_t netUsartRxBuffer[2][WIFI_RX_BUF_SIZE];
 
 } WifiUsartData_S;
+
+
+typedef struct _WIFI_AP_SECRET
+{
+	char ssid[32];
+	char pwd[32];
+
+} WIFI_AP_SECRET_S;
+
+
+
+typedef enum
+{
+	SUC = 1, FAILED, OVERTIME, ERR
+} WIFI_UART_RSP_E;
+
+
+typedef enum
+{
+	CONFIG = 1, DIS_CONNECT, CONNECTING, CONNECTED, DIS_CONNECTING
+} WIFI_AP_STATUS_E;
+
+
+
+
+typedef enum
+{
+	STA = 1, AP, STA_AP
+} WIFI_NET_E;
+
+
+
+
+
+
+
+
+
+
+
 
 
 #endif /* USERINC_SYSTEM_H_ */

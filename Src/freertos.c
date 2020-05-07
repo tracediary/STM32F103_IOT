@@ -25,13 +25,16 @@
 #include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */     
-
+/* USER CODE BEGIN Includes */
+#include "usart.h"
+#include "user_app.h"
+#include "Debug.h"
+#include "system.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+EventGroupHandle_t debugEventHandler = NULL;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -73,6 +76,7 @@ void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer, Stack
 void vApplicationIdleHook(void);
 void vApplicationTickHook(void);
 void vApplicationMallocFailedHook(void);
+void vApplicationDaemonTaskStartupHook(void);
 
 /* USER CODE BEGIN 2 */
 __weak void vApplicationIdleHook(void)
@@ -115,6 +119,12 @@ __weak void vApplicationMallocFailedHook(void)
 	 provide information on how the remaining heap might be fragmented). */
 }
 /* USER CODE END 5 */
+
+/* USER CODE BEGIN DAEMON_TASK_STARTUP_HOOK */
+void vApplicationDaemonTaskStartupHook(void)
+{
+}
+/* USER CODE END DAEMON_TASK_STARTUP_HOOK */
 
 /* USER CODE BEGIN PREPOSTSLEEP */
 __weak void PreSleepProcessing(uint32_t *ulExpectedIdleTime)
@@ -164,6 +174,8 @@ void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer, StackT
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
 
+	debugEventHandler = xEventGroupCreate();
+	xEventGroupSetBits(debugEventHandler, EVENTBIT_DEBUG_UART_TC);
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -189,6 +201,9 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_THREADS */
 	/* add threads, ... */
+	app_os_var_init();
+	app_task_init();
+
   /* USER CODE END RTOS_THREADS */
 
 }
@@ -204,10 +219,11 @@ void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
 	/* Infinite loop */
-	for (;;)
+	while (1)
 	{
-		osDelay(1);
+		osDelay(100);
 	}
+
   /* USER CODE END StartDefaultTask */
 }
 

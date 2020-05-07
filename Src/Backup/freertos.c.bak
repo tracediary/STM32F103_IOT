@@ -25,8 +25,10 @@
 #include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */     
-
+/* USER CODE BEGIN Includes */
+#include "usart.h"
+#include "user_app.h"
+#include "Debug.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -180,15 +182,19 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_QUEUES */
 	/* add queues, ... */
+	HAL_UART_Transmit_DMA(&huart2, "tex,", 4);
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+	//osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+	//defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
 	/* add threads, ... */
+	app_os_var_init();
+	app_task_init();
+
   /* USER CODE END RTOS_THREADS */
 
 }
@@ -204,10 +210,11 @@ void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
 	/* Infinite loop */
-	for (;;)
+	while (1)
 	{
-		osDelay(1);
+		osDelay(1000);
 	}
+
   /* USER CODE END StartDefaultTask */
 }
 

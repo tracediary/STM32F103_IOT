@@ -46,13 +46,13 @@ void wifi_gpio_config()
 	__HAL_RCC_GPIOG_CLK_ENABLE()
 	;
 
-	HAL_GPIO_WritePin(WIFI_EN_GPIO_Port, WIFI_EN_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(WIFI_EN_GPIO_PORT, WIFI_EN_PIN, GPIO_PIN_RESET);
 
 	/*Configure GPIO pin Output Level */
-	HAL_GPIO_WritePin(WIFI_RST_GPIO_Port, WIFI_RST_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(WIFI_RST_GPIO_PORT, WIFI_RST_PIN, GPIO_PIN_SET);
 
 	/*Configure GPIO pins : PGPin PGPin */
-	GPIO_InitStruct.Pin = WIFI_EN_Pin | WIFI_RST_Pin;
+	GPIO_InitStruct.Pin = WIFI_EN_PIN | WIFI_RST_PIN;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
