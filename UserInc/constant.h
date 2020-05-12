@@ -44,7 +44,8 @@
 #define EVENTBIT_WIFI_LINK_3_READY		(1<<14)
 #define EVENTBIT_WIFI_LINK_4			(1<<15)
 #define EVENTBIT_WIFI_LINK_4_READY		(1<<16)
-#define EVENTBIT_WIFI_MODE				(1<<17)
+#define EVENTBIT_WIFI_MUX				(1<<17)
+#define EVENTBIT_WIFI_SINGLE_MODE		(1<<18)
 
 
 /**********DEBUG UART2 define************/
@@ -53,6 +54,12 @@
 #define DEBUG_UART						USART2
 #define EVENTBIT_DEBUG_UART_REC			(1<<0)
 #define EVENTBIT_DEBUG_UART_TC			(1<<1)
+
+
+
+
+
+
 
 
 #endif /* CONSTANT_H_ */

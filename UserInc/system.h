@@ -64,7 +64,13 @@ typedef enum
 
 
 
+//TODO 待删除定义
 
+typedef struct
+{
+	int humidity;        //实际湿度
+	int temperature;     //实际温度
+} DHT11_Data_TypeDef;
 
 
 

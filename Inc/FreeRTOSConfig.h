@@ -61,7 +61,7 @@
 #define configTICK_RATE_HZ                       ((TickType_t)1000)
 #define configMAX_PRIORITIES                     ( 8 )
 #define configMINIMAL_STACK_SIZE                 ((uint16_t)128)
-#define configTOTAL_HEAP_SIZE                    ((size_t)20480)
+#define configTOTAL_HEAP_SIZE                    ((size_t)30960)
 #define configMAX_TASK_NAME_LEN                  ( 16 )
 #define configUSE_16_BIT_TICKS                   0
 #define configUSE_MUTEXES                        1
@@ -149,6 +149,10 @@ standard names. */
 
 /* USER CODE BEGIN Defines */   	      
 /* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
+#ifndef configEXPECTED_IDLE_TIME_BEFORE_SLEEP
+#define configEXPECTED_IDLE_TIME_BEFORE_SLEEP 20000
+#endif
+
 /* USER CODE END Defines */ 
 
 #if defined(__ICCARM__) || defined(__CC_ARM) || defined(__GNUC__)

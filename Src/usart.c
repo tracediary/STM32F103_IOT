@@ -21,7 +21,7 @@
 #include "usart.h"
 
 /* USER CODE BEGIN 0 */
-
+#include "stdio.h"
 #include "system.h"
 #include "wifi.h"
 
@@ -97,11 +97,11 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
   /* USER CODE END USART2_MspInit 0 */
     /* USART2 clock enable */
     __HAL_RCC_USART2_CLK_ENABLE();
-
+  
     __HAL_RCC_GPIOA_CLK_ENABLE();
-    /**USART2 GPIO Configuration
+    /**USART2 GPIO Configuration    
     PA2     ------> USART2_TX
-    PA3     ------> USART2_RX
+    PA3     ------> USART2_RX 
     */
     GPIO_InitStruct.Pin = DEBUG_TX_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -166,11 +166,11 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
   /* USER CODE END USART3_MspInit 0 */
     /* USART3 clock enable */
     __HAL_RCC_USART3_CLK_ENABLE();
-
+  
     __HAL_RCC_GPIOB_CLK_ENABLE();
-    /**USART3 GPIO Configuration
+    /**USART3 GPIO Configuration    
     PB10     ------> USART3_TX
-    PB11     ------> USART3_RX
+    PB11     ------> USART3_RX 
     */
     GPIO_InitStruct.Pin = WIFI_TX_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -236,10 +236,10 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
   /* USER CODE END USART2_MspDeInit 0 */
     /* Peripheral clock disable */
     __HAL_RCC_USART2_CLK_DISABLE();
-
-    /**USART2 GPIO Configuration
+  
+    /**USART2 GPIO Configuration    
     PA2     ------> USART2_TX
-    PA3     ------> USART2_RX
+    PA3     ------> USART2_RX 
     */
     HAL_GPIO_DeInit(GPIOA, DEBUG_TX_Pin|DEBUG_RX_Pin);
 
@@ -260,10 +260,10 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
   /* USER CODE END USART3_MspDeInit 0 */
     /* Peripheral clock disable */
     __HAL_RCC_USART3_CLK_DISABLE();
-
-    /**USART3 GPIO Configuration
+  
+    /**USART3 GPIO Configuration    
     PB10     ------> USART3_TX
-    PB11     ------> USART3_RX
+    PB11     ------> USART3_RX 
     */
     HAL_GPIO_DeInit(GPIOB, WIFI_TX_Pin|WIFI_RX_Pin);
 
@@ -277,7 +277,7 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 
   /* USER CODE END USART3_MspDeInit 1 */
   }
-}
+} 
 
 /* USER CODE BEGIN 1 */
 
@@ -393,7 +393,10 @@ uint8_t wifi_uart_send(uint8_t *buffer, uint32_t size)
 
 
 
-#include "stdio.h"
+
+
+
+
 
 #ifdef __GNUC__
 #define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
@@ -406,6 +409,8 @@ PUTCHAR_PROTOTYPE
 	HAL_UART_Transmit(&huart2, (uint8_t*) &ch, 1, DELAY_BASE_10MIL_TIME);
 	return ch;
 }
+
+#if 1
 int _write(int file, char *ptr, int len)
 {
 	int DataIdx;
@@ -415,6 +420,8 @@ int _write(int file, char *ptr, int len)
 	}
 	return len;
 }
+
+#endif
 
 /* USER CODE END 1 */
 

@@ -12,21 +12,23 @@
 #include "usart.h"
 #include "wifi.h"
 
+#include "transport.h"
+
 WifiUsartData_S wifiData;
 
 WIFI_AP_SECRET_S wifiAPSecret = { DEFAULT_SSID, DEFAULT_PWD };
 
-TaskHandle_t wifiAPTaskHandle;
+TaskHandle_t wifiAPTaskHandle = NULL;
 EventGroupHandle_t wifiEventHandler = NULL;
 SemaphoreHandle_t wifiBusySemaphoreMutexHandle = NULL;
 
+extern TaskHandle_t KEEP_Handle;
 
+uint8_t rec_data[WIFI_RX_BUF_SIZE];
 
 /********wifi function start****************************************/
 
 void wifi_hardware_start();
-WIFI_UART_RSP_E wifi_send_cmd(char * buffer, char * sucInfo, char * errInfo, uint32_t waittime);
-WIFI_UART_RSP_E wifi_send_data(char * buffer, char * sucInfo, char * errInfo, uint32_t waittime);
 bool wifi_software_config(WIFI_NET_E wifiMode);
 bool wifi_joinAP(char * pSSID, char * pPassWord);
 WIFI_UART_RSP_E wifi_send_uart(char * buffer, char * sucInfo, char * errInfo, uint32_t waittime, bool flag);
@@ -36,7 +38,9 @@ void wifi_Handle()
 {
 	wifiData.index = 0;
 	xEventGroupSetBits(wifiEventHandler, EVENTBIT_WIFI_UART_TC | EVENTBIT_WIFI_DIS_AP | EVENTBIT_WIFI_CONFIG);
-	xEventGroupClearBits(wifiEventHandler, EVENTBIT_WIFI_UART_REC);
+	xEventGroupClearBits(wifiEventHandler,
+			EVENTBIT_WIFI_UART_REC | EVENTBIT_WIFI_LINK_0 | EVENTBIT_WIFI_LINK_1 | EVENTBIT_WIFI_LINK_2
+					| EVENTBIT_WIFI_LINK_3 | EVENTBIT_WIFI_LINK_4);
 
 	HAL_UART_Receive_DMA(wifiUart, wifiData.netUsartRxBuffer[!wifiData.index], DEBUG_RX_BUF_SIZE);
 }
@@ -84,7 +88,7 @@ void wifi_AP_task()
 
 			while (1)
 			{
-				Debug("wait hearbeat\n");
+				//Debug("wait hearbeat\n");
 				vTaskDelay(10000);
 			}
 			ap_status = DIS_CONNECTING;
@@ -112,10 +116,9 @@ void wifi_hardware_start()
 
 	HAL_GPIO_WritePin(WIFI_RST_GPIO_PORT, WIFI_RST_PIN, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(WIFI_EN_GPIO_PORT, WIFI_EN_PIN, GPIO_PIN_RESET);
-	vTaskDelay(20);
-	HAL_GPIO_WritePin(WIFI_EN_GPIO_PORT, WIFI_EN_PIN, GPIO_PIN_SET);
 	vTaskDelay(100);
-#if 1
+	HAL_GPIO_WritePin(WIFI_EN_GPIO_PORT, WIFI_EN_PIN, GPIO_PIN_SET);
+	vTaskDelay(500);
 
 	xEventGroupClearBits(wifiEventHandler, EVENTBIT_WIFI_UART_REC);
 	while (1)
@@ -132,11 +135,12 @@ void wifi_hardware_start()
 			return;
 		}
 	}
-#endif
 
 	wifi_send_cmd("ATE0", NULL, NULL, WIFI_UART_WAITTIME);
 	vTaskDelay(20);
 }
+
+
 
 bool wifi_software_config(WIFI_NET_E wifiMode)
 {
@@ -193,36 +197,52 @@ bool wifi_joinAP(char * pSSID, char * pPassWord)
 
 void distribute_msg(void)
 {
+	char * len_str = NULL;
+	uint32_t len = 0;
 
-#if 0
-	wifi_Handle();
-	wifi_hardware_start();
-#endif
 	ulTaskNotifyTake(pdTRUE, 0);
 	while (1)
 	{
 		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-#if 0
-		printf("cmd:\n");
-		printf(wifiData.netUsartRxBuffer[wifiData.index]);
-		//printf(wifiData.netUsartRxBuffer[!wifiData.index]);
-		printf("end\n");
-#else
 
 		if (strstr(wifiData.netUsartRxBuffer[wifiData.index], "WIFI DISCONNECT"))
 		{
-			//TODO
+			//TODO wifi断连，重连
 			xEventGroupClearBits(wifiEventHandler,
 					EVENTBIT_WIFI_CONNECTED_AP | EVENTBIT_WIFI_LINK_0 | EVENTBIT_WIFI_LINK_1 | EVENTBIT_WIFI_LINK_2
 							| EVENTBIT_WIFI_LINK_3 | EVENTBIT_WIFI_LINK_4);
 
 			xEventGroupSetBits(wifiEventHandler, EVENTBIT_WIFI_DIS_AP);
+			xTaskNotifyGive(KEEP_Handle);
 
 			Debug("system notify!\n");
 		}
 		else if (strstr(wifiData.netUsartRxBuffer[wifiData.index], "+IPD"))
 		{
-			//TODO收到数据，需要单独处理
+			//TODO收到数据，需要单独处理,非透传模式
+
+			memset(rec_data, 0, WIFI_RX_BUF_SIZE);
+
+			len_str = strstr(wifiData.netUsartRxBuffer[wifiData.index], ",") + 1;
+
+			len = 0;
+			while (':' != *len_str)
+			{
+				len = len * 10 + (*len_str - '0');
+				len_str++;
+			}
+
+			memcpy(rec_data, (len_str++), len);
+
+			printf("get the net data: %s, the len is %d\n", rec_data, len);
+
+		}
+		else if (strstr(wifiData.netUsartRxBuffer[wifiData.index], "CLOSED"))
+		{
+			//TODO 透传模式下断连
+			Debug("MQTT link closed\n");
+			xEventGroupClearBits(wifiEventHandler, EVENTBIT_WIFI_LINK_0);
+			xTaskNotifyGive(KEEP_Handle);
 		}
 		else
 		{
@@ -230,70 +250,6 @@ void distribute_msg(void)
 			printf("\n");
 			xEventGroupSetBits(wifiEventHandler, EVENTBIT_WIFI_UART_REC);
 		}
-#endif
 	}
-
-}
-
-WIFI_UART_RSP_E wifi_send_cmd(char * buffer, char * sucInfo, char * errInfo, uint32_t waittime)
-{
-	return wifi_send_uart(buffer, sucInfo, errInfo, waittime, true);
-
-}
-
-WIFI_UART_RSP_E wifi_send_data(char * buffer, char * sucInfo, char * errInfo, uint32_t waittime)
-{
-	return wifi_send_uart(buffer, sucInfo, errInfo, waittime, false);
-}
-
-WIFI_UART_RSP_E wifi_send_uart(char * buffer, char * sucInfo, char * errInfo, uint32_t waittime, bool flag)
-{
-	EventBits_t eventValue;
-	uint8_t txData[WIFI_TX_BUF_SIZE] = { 0 };
-	uint8_t endflag[2] = { 0x0d, 0x0a };
-
-	uint32_t size = strlen(buffer);
-
-	if ((size > (WIFI_TX_BUF_SIZE - 2)) || (buffer == NULL))
-	{
-		printf("the send data too long or is null!\n");
-		return ERR;
-	}
-	if (flag)
-	{
-		sprintf(txData, "%s%c%c", buffer, endflag[0], endflag[1]);
-		size = size + 2;
-	}
-	else
-	{
-		memcpy(txData, buffer, size);
-	}
-
-	xEventGroupClearBits(wifiEventHandler, EVENTBIT_WIFI_UART_REC);
-	wifi_uart_send(txData, size);
-
-	if ((sucInfo == NULL) && (errInfo == NULL))
-	{
-		return SUC;
-	}
-
-	eventValue = xEventGroupWaitBits(wifiEventHandler, EVENTBIT_WIFI_UART_REC, pdTRUE, pdFALSE, waittime);
-	if ((eventValue & EVENTBIT_WIFI_UART_REC) == 0)
-	{
-		printf("WIFI UART get response overtime\n");
-		return OVERTIME;
-	}
-	if ((sucInfo != NULL) && strstr(wifiData.netUsartRxBuffer[wifiData.index], sucInfo))
-	{
-		return SUC;
-	}
-	else if ((errInfo != NULL) && strstr(wifiData.netUsartRxBuffer[wifiData.index], errInfo))
-	{
-		return FAILED;
-	}
-
-	printf("WIFI UART get the error response\n");
-
-	return ERR;
 
 }

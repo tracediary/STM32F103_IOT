@@ -176,6 +176,13 @@ void MX_FREERTOS_Init(void) {
 
 	debugEventHandler = xEventGroupCreate();
 	xEventGroupSetBits(debugEventHandler, EVENTBIT_DEBUG_UART_TC);
+
+	//don't delete this part, or you maybe meet ghost
+	//reason is the sprintf need this for cJSON,
+	unsigned char number_buffer[26];
+	double d = 25.1;
+	sprintf((char*) number_buffer, "%1.15g", d);
+	printf("do not delete this log, or you maybe meet ghost: %s\n", number_buffer);
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
