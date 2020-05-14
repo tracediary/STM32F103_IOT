@@ -23,9 +23,9 @@ cJSON* cJSON_Data_Init(void)
 	cJSON_AddNumberToObject(cJSON_Root, TEMP_NUM, DEFAULT_TEMP_NUM);
 	cJSON_AddNumberToObject(cJSON_Root, HUM_NUM, DEFAULT_HUM_NUM);
 
-#if 1
+#if 0
 	p = cJSON_Print(cJSON_Root); /*p point JSON string*/
-	
+
 	printf("get the json: %s\n",p);
 
 	vPortFree(p);
@@ -65,7 +65,7 @@ uint8_t cJSON_Update(const cJSON * const object, const char * const string, void
 
 void Proscess(void* data)
 {
-	printf("start to process json.");
+	printf("start to process json.\n");
 	cJSON *root, *json_name, *json_temp_num, *json_hum_num;
 	root = cJSON_Parse((char*) data); //parse json string
 
@@ -76,6 +76,8 @@ void Proscess(void* data)
 
 	printf("name:%s\n temp_num:%f\n hum_num:%f\n", json_name->valuestring, json_temp_num->valuedouble,
 			json_hum_num->valuedouble);
+
+//	printf("name:%s\n temp_num:2222222222222222222\n hum_num:44444444444444444\n", json_name->valuestring);
 
 	cJSON_Delete(root);
 }

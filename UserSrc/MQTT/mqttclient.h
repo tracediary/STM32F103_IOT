@@ -5,7 +5,7 @@
 
 #define   MSG_MAX_LEN     500
 #define   MSG_TOPIC_LEN   100
-#define   KEEPLIVE_TIME   120
+#define   KEEPLIVE_TIME   60
 #define   MQTT_VERSION    4
 
 #define		HEARTBEAT_TIMER				(KEEPLIVE_TIME * 1000)
@@ -20,6 +20,7 @@
 #define   PASSWORD      "C05DBFA9C25F4E4FA251674587C7ABE966DDF5C4"
 
 #define   TOPIC         "/a1NTyrvBAf4/stm32_temlate/user/template"
+#define   TOPIC_SUB         "/a1NTyrvBAf4/stm32_temlate/user/get"
 #define   TEST_MESSAGE  "test_message"
 
 enum QoS

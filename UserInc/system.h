@@ -31,6 +31,13 @@ typedef struct _WIFI_USART_DATA
 
 } WifiUsartData_S;
 
+typedef struct _WIFI_LINK_INFO
+{
+	uint32_t lenth[WIFI_MAX_LINK];
+	uint8_t *data_buf[WIFI_MAX_LINK];
+
+} WifiLinkInfo_S;
+
 
 typedef struct _WIFI_AP_SECRET
 {
@@ -43,7 +50,7 @@ typedef struct _WIFI_AP_SECRET
 
 typedef enum
 {
-	SUC = 1, FAILED, OVERTIME, ERR
+	SUC = 1, FAILED, OVERTIME, ERR, BUSY
 } WIFI_UART_RSP_E;
 
 
@@ -52,16 +59,16 @@ typedef enum
 	CONFIG = 1, DIS_CONNECT, CONNECTING, CONNECTED, DIS_CONNECTING
 } WIFI_AP_STATUS_E;
 
-
-
-
 typedef enum
 {
 	STA = 1, AP, STA_AP
 } WIFI_NET_E;
 
 
-
+typedef enum
+{
+	CON_AP = 2, CON_TCP_UDP, DIS_CON_TCP_UDP, DIS_CON_AP
+} WIFI_STATUS_E;
 
 
 //TODO 待删除定义

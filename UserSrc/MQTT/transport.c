@@ -64,14 +64,30 @@ extern uint32_t first_index_to_read;
 
 int transport_sendPacketBuffer(unsigned char* buf, int buflen)
 {
-//	int rc = 0;
-	wifi_send_mqtt_data(buf, NULL, NULL, buflen, WIFI_UART_WAITTIME);
+	int rc = 0;
+	char cmd[20] = { 0 };
+	WIFI_UART_RSP_E rsp = ERR;
+	sprintf(cmd, "AT+CIPSEND=%d,%d", WIFI_MQTT_LINK_ID, buflen);
+
+	rsp = wifi_send_cmd(cmd, ">", NULL, (WIFI_UART_WAITTIME * 2));
+	if (rsp != SUC)
+	{
+		return -1;
+	}
+
+	rsp = wifi_send_ascii_data_cmd(buf, "SEND OK", "SEND FAIL", buflen, WIFI_UART_WAITTIME);
+//	rsp = wifi_send_ascii_data_cmd(buf, NULL, NULL, buflen, WIFI_UART_WAITTIME);
+	if (rsp != SUC)
+	{
+		return -2;
+	}
 	return 1;
 }
 
 int transport_getdata(unsigned char* buf, int count)
 {
-	memcpy(buf, &(wifiData.netUsartRxBuffer[wifiData.index][first_index_to_read]), count);
+	memcpy(buf, &(wifiLinkdata.data_buf[WIFI_MQTT_LINK_ID][first_index_to_read]), count);
+//	memcpy(buf, (wifiLinkdata.data_buf[WIFI_MQTT_LINK_ID] + first_index_to_read), count);
 	first_index_to_read += count;
 //	int rc = recv(mysock, buf, count, 0);
 	//printf("received %d bytes count %d\n", rc, (int)count);
@@ -91,10 +107,10 @@ int transport_open(char* addr, int port)
 	char cmd[100] = { 0 };
 	WIFI_UART_RSP_E rsp = ERR;
 
-	sprintf(cmd, "AT+CIPSTART=\"TCP\",\"%s\",%d", addr, port);
+	sprintf(cmd, "AT+CIPSTART=%d,\"TCP\",\"%s\",%d", WIFI_MQTT_LINK_ID, addr, port);
 	while (1)
 	{
-		rsp = wifi_send_cmd_mux(cmd, "OK", "ALREAY CONNECT", "ERROR", (WIFI_UART_WAITTIME * 10));
+		rsp = wifi_send_cmd_mux(cmd, "OK", "ALREADY CONNECTED", "ERROR", (WIFI_UART_WAITTIME * 30));
 		if (SUC == rsp)
 		{
 			Debug("connect to server\n");
@@ -106,6 +122,9 @@ int transport_open(char* addr, int port)
 		}
 		vTaskDelay(1000);
 	}
+
+#if 0
+	//透传模式有断连bug，暂时不用透传
 	while (1)
 	{
 		rsp = wifi_send_cmd("AT+CIPMODE=1", "OK", "ERROR", WIFI_UART_WAITTIME);
@@ -120,20 +139,45 @@ int transport_open(char* addr, int port)
 		}
 		vTaskDelay(1000);
 	}
-
-	wifi_send_cmd("AT+CIPSEND", ">", NULL, WIFI_UART_WAITTIME);
-
 	xEventGroupSetBits(wifiEventHandler, EVENTBIT_WIFI_SINGLE_MODE);
 	xEventGroupClearBits(wifiEventHandler, EVENTBIT_WIFI_MUX);
-	return 0;
+	wifi_send_cmd("AT+CIPSEND", ">", NULL, WIFI_UART_WAITTIME);
+#endif
+
+	return WIFI_MQTT_LINK_ID;
 }
 
 int transport_close(int sock)
 {
-	wifi_send_data("+++", NULL, NULL, WIFI_UART_WAITTIME);
-	vTaskDelay(1500);
-	wifi_send_cmd("AT+CIPCLOSE", NULL, NULL, WIFI_UART_WAITTIME);
-	vTaskDelay(4000);
+	//TODO 没有判断是否透传模式,多连接模式下，关闭连接也需要修改
+	WIFI_STATUS_E wifi_status = DIS_CON_AP;
+	char cmd[20] = { 0 };
+//	wifi_send_mqtt_data("+++", NULL, NULL, 3, WIFI_UART_WAITTIME);
+//	vTaskDelay(2000);
+//	xEventGroupClearBits(wifiEventHandler, EVENTBIT_WIFI_SINGLE_MODE);
+
+
+	wifi_status = get_wifi_status();
+	switch (wifi_status)
+	{
+	case CON_AP:
+		break;
+	case CON_TCP_UDP:
+		Debug("sys want to close mqtt link\n");
+		sprintf(cmd, "AT+CIPCLOSE=%d", WIFI_MQTT_LINK_ID);
+		wifi_send_cmd(cmd, "OK", "ERROR", (WIFI_UART_WAITTIME * 2));
+		break;
+	case DIS_CON_TCP_UDP:
+		break;
+	case DIS_CON_AP:
+		xEventGroupClearBits(wifiEventHandler, EVENTBIT_WIFI_CONNECTED_AP);
+		xEventGroupSetBits(wifiEventHandler, (EVENTBIT_WIFI_DIS_AP | EVENTBIT_WIFI_DIS_ING_AP));
+
+		break;
+	default:
+		break;
+	}
 
 	return 0;
 }
+

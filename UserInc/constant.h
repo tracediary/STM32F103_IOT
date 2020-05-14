@@ -15,17 +15,28 @@
 /******common define*********/
 #define DELAY_BASE_10MIL_TIME			10
 
-#define DELAY_BASE_SEC_TIME				1000
+#define DELAY_BASE_SEC_TIME				(DELAY_BASE_10MIL_TIME * 100)
 
-/**WIFI define */
+/**WIFI define start*****************************************************/
 #define DEFAULT_SSID					"siweiwuhen"
 #define DEFAULT_PWD						"763505660cqu"
 
-#define WIFI_RX_BUF_SIZE				1024
-#define WIFI_TX_BUF_SIZE				(WIFI_RX_BUF_SIZE * 2)
+#define WIFI_RX_BUF_SIZE				500
+#define WIFI_TX_BUF_SIZE				WIFI_RX_BUF_SIZE
+#define WIFI_NORMAL_BUF_SIZE			50
 #define WIFI_UART						USART3
 
-#define WIFI_UART_WAITTIME				500
+//除了MQTT，其他名字都可以更改
+#define WIFI_CMD_FLAG					99
+#define WIFI_MAX_LINK					5
+
+#define WIFI_MQTT_LINK_ID				0
+#define WIFI_TCP1_LINK_ID				1
+#define WIFI_TCP2_LINK_ID				2
+#define WIFI_UDP1_LINK_ID				3
+#define WIFI_UDP2_LINK_ID				4
+
+#define WIFI_UART_WAITTIME				(DELAY_BASE_10MIL_TIME * 50)
 
 #define EVENTBIT_WIFI_UART_REC			(1<<0)
 #define EVENTBIT_WIFI_UART_TC			(1<<1)
@@ -47,6 +58,10 @@
 #define EVENTBIT_WIFI_MUX				(1<<17)
 #define EVENTBIT_WIFI_SINGLE_MODE		(1<<18)
 
+
+
+
+/**WIFI define end*****************************************************/
 
 /**********DEBUG UART2 define************/
 #define DEBUG_RX_BUF_SIZE				100

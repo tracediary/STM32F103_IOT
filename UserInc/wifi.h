@@ -16,6 +16,8 @@
 extern EventGroupHandle_t wifiEventHandler;
 extern SemaphoreHandle_t wifiBusySemaphoreMutexHandle;
 extern TaskHandle_t wifiAPTaskHandle;
+extern SemaphoreHandle_t wifiSemaphoreMutexHandle;
+
 
 void wifi_Handle();
 

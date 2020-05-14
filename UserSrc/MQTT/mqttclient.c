@@ -11,6 +11,7 @@
 #include "wifi.h"
 #include "usart.h"
 #include "system.h"
+#include "wifiUtil.h"
 
 extern QueueHandle_t MQTT_Data_Queue;
 
@@ -20,10 +21,8 @@ int32_t MQTT_Socket = 0;
 
 /**FreeRTOS define start**************************************/
 TaskHandle_t RECV_Handle = NULL, SEND_Handle = NULL, KEEP_Handle = NULL;
-
 TimerHandle_t AR_Mqtt_HB_TimerHandle = NULL;
 
-SemaphoreHandle_t wifiSemaphoreMutexHandle = NULL;
 /**FreeRTOS define end*************************************/
 void deliverMessage(MQTTString *TopicName, MQTTMessage *msg, MQTT_USER_MSG *mqtt_user_msg);
 
@@ -60,11 +59,11 @@ uint8_t MQTT_Connect(void)
 
 	transport_sendPacketBuffer(buf, len);
 
-	eventValue = xEventGroupWaitBits(wifiEventHandler, EVENTBIT_WIFI_UART_REC, pdTRUE, pdFALSE,
+	eventValue = xEventGroupWaitBits(wifiEventHandler, wifi_link_ready[WIFI_MQTT_LINK_ID], pdTRUE, pdFALSE,
 			(WIFI_UART_WAITTIME * 10));
-	if ((eventValue & EVENTBIT_WIFI_UART_REC) == 0)
+	if ((eventValue & wifi_link_ready[WIFI_MQTT_LINK_ID]) == 0)
 	{
-		printf("WIFI UART get response overtime\n");
+		printf("wait MQTT server response overtime\n");
 	}
 	memset(buf, 0, buflen);
 
@@ -105,10 +104,10 @@ int32_t MQTT_PingReq(int32_t sock)
 	len = MQTTSerialize_pingreq(buf, buflen);
 	transport_sendPacketBuffer(buf, len);
 
-	eventValue = xEventGroupWaitBits(wifiEventHandler, EVENTBIT_WIFI_UART_REC, pdTRUE, pdFALSE,
+	eventValue = xEventGroupWaitBits(wifiEventHandler, wifi_link_ready[WIFI_MQTT_LINK_ID], pdTRUE, pdFALSE,
 			(WIFI_UART_WAITTIME * 4));
 
-	if ((eventValue & EVENTBIT_WIFI_UART_REC) == 0)
+	if ((eventValue & wifi_link_ready[WIFI_MQTT_LINK_ID]) == 0)
 	{
 		printf("wait ping req reply failed\n");
 		return -2;
@@ -153,9 +152,9 @@ int32_t MQTTSubscribe(int32_t sock, char *topic, enum QoS pos)
 	if (transport_sendPacketBuffer(buf, len) < 0)
 		return -1;
 
-	eventValue = xEventGroupWaitBits(wifiEventHandler, EVENTBIT_WIFI_UART_REC, pdTRUE, pdFALSE,
+	eventValue = xEventGroupWaitBits(wifiEventHandler, wifi_link_ready[WIFI_MQTT_LINK_ID], pdTRUE, pdFALSE,
 			(WIFI_UART_WAITTIME * 10));
-	if ((eventValue & EVENTBIT_WIFI_UART_REC) != 0)
+	if ((eventValue & wifi_link_ready[WIFI_MQTT_LINK_ID]) != 0)
 	{
 		first_index_to_read = 0;
 		if (MQTTPacket_read(buf, buflen, transport_getdata) != SUBACK)
@@ -175,6 +174,47 @@ int32_t MQTTSubscribe(int32_t sock, char *topic, enum QoS pos)
 		return -2;
 	}
 }
+
+int32_t MQTTUnSubscribe(int32_t sock, char *topic)
+{
+	static uint32_t PacketID = 0;
+
+	EventBits_t eventValue;
+
+	uint16_t packetidbk = 0;
+	uint8_t buf[100];
+	int32_t buflen = sizeof(buf);
+	MQTTString topicString = MQTTString_initializer;
+	int32_t len;
+
+	topicString.cstring = (char *) topic;
+
+	len = MQTTSerialize_unsubscribe(buf, buflen, 0, PacketID++, 1, &topicString);
+	if (transport_sendPacketBuffer(buf, len) < 0)
+		return -1;
+
+	eventValue = xEventGroupWaitBits(wifiEventHandler, wifi_link_ready[WIFI_MQTT_LINK_ID], pdTRUE, pdFALSE,
+			(WIFI_UART_WAITTIME * 10));
+	if ((eventValue & wifi_link_ready[WIFI_MQTT_LINK_ID]) != 0)
+	{
+		first_index_to_read = 0;
+		if (MQTTPacket_read(buf, buflen, transport_getdata) != SUBACK)
+			return -4;
+
+		if (MQTTDeserialize_unsuback(&packetidbk, buf, buflen) != 1)
+			return -5;
+
+		return 0;
+	}
+	else
+	{
+		printf("WIFI UART get response overtime\n");
+		return -2;
+	}
+}
+
+
+
 /************************************************************************
  ** 函数名称: UserMsgCtl
  ** 函数功能: 用户消息处理函数
@@ -449,32 +489,28 @@ void Client_Connect(void)
 	MQTT_START:
 
 	Debug("start to connect to aliyun %s, port %d\n", host_ip, HOST_PORT);
-	while (1)
-	{
-		MQTT_Socket = transport_open((int8_t*) host_ip, HOST_PORT);
-
-		if (MQTT_Socket >= 0)
-		{
-			Debug("set up aliyun tcp link ok\n");
-			break;
-		}
-		Debug("failed to connect aliyun, try again\n");
-		vTaskDelay(3000);
-	}
+	MQTT_Socket = transport_open((int8_t*) host_ip, HOST_PORT);
 
 	if (MQTT_Connect() != Connect_OK)
 	{
-		Debug("auth failed, reconnect\n");
-		transport_close(0);
+		Error("auth failed, reconnect\n");
+		transport_close(MQTT_Socket);
+		vTaskDelay(DELAY_BASE_SEC_TIME * 5);
 		goto MQTT_START;
 	}
 
-	if (MQTTSubscribe(MQTT_Socket, (char *) TOPIC, QOS1) < 0)
+	//MQTTUnSubscribe(MQTT_Socket, (char *) TOPIC);
+
+
+#if 0
+	if (MQTTSubscribe(MQTT_Socket, (char *) TOPIC_SUB, QOS1) < 0)
 	{
-		Debug("sub failed, reconnect\n");
-		transport_close(0);
+		Error("sub failed, reconnect\n");
+		transport_close(MQTT_Socket);
+		vTaskDelay(DELAY_BASE_SEC_TIME * 5);
 		goto MQTT_START;
 	}
+#endif
 	Debug("connect to Aliyun \n");
 	xEventGroupSetBits(wifiEventHandler, EVENTBIT_WIFI_LINK_0);
 
@@ -507,20 +543,19 @@ void mqtt_recv_thread(void *pvParameters)
 
 	while (1)
 	{
-		eventValue = xEventGroupWaitBits(wifiEventHandler, (EVENTBIT_WIFI_UART_REC | EVENTBIT_WIFI_LINK_0), pdFALSE,
-		pdTRUE,
-		portMAX_DELAY);
+		eventValue = xEventGroupWaitBits(wifiEventHandler, (EVENTBIT_WIFI_LINK_0_READY | EVENTBIT_WIFI_LINK_0), pdFALSE,
+		pdTRUE, portMAX_DELAY);
 
-		if ((eventValue & EVENTBIT_WIFI_UART_REC) == 0)
+		if ((eventValue & (EVENTBIT_WIFI_LINK_0_READY | EVENTBIT_WIFI_LINK_0)) == 0)
 		{
 			printf("wait mqtt info rec\n");
 			continue;
 		}
-		xEventGroupClearBits(wifiEventHandler, EVENTBIT_WIFI_UART_REC);
+		xEventGroupClearBits(wifiEventHandler, EVENTBIT_WIFI_LINK_0_READY);
 		err = xSemaphoreTake(wifiSemaphoreMutexHandle, (WIFI_UART_WAITTIME * 4));
 		if (err == pdFALSE)
 		{
-			Debug("get wifiSemaphoreMutexHandle failed, wait next time\n ");
+			Debug("get wifiSemaphoreMutexHandle failed, wait next time\n");
 			continue;
 		}
 
@@ -539,7 +574,6 @@ void mqtt_send_thread(void *pvParameters)
 	uint8_t res;
 	int32_t ret = 0;
 	BaseType_t err = pdFALSE;
-
 
 	//BaseType_t xReturn = pdTRUE;
 	//DHT11_Data_TypeDef* recv_data;
@@ -579,15 +613,22 @@ void mqtt_send_thread(void *pvParameters)
 
 //			Debug("get Json string\n");
 			char* p = cJSON_Print(cJSON_Data);
-			Debug("start to send Json: %s\n",p);
+			Debug("start to send Json\n");
+//			Debug("start to send Json: %s\n", p);
 			ret = MQTTMsgPublish(MQTT_Socket, (char*) TOPIC, QOS0, (uint8_t*) p);
 			xSemaphoreGive(wifiSemaphoreMutexHandle);
 
 			Debug("send task give the wifi sema\n");
 
-			if (ret > 0)
+			if (ret >= 0)
 			{
 				xTimerReset(AR_Mqtt_HB_TimerHandle, 0);
+				Debug("send task send msg success!\n");
+			}
+			else
+			{
+				Error("send mqtt msg failed!\n");
+				xTaskNotifyGive(KEEP_Handle);
 			}
 			vPortFree(p);
 			p = NULL;
@@ -604,12 +645,32 @@ void mqtt_keepAlive_thread(void *pvParameters)
 	int32_t pingReq = 0;
 	BaseType_t err = pdFALSE;
 
+	MQTT_APPLY_RAM:
+
+	wifiLinkdata.data_buf[WIFI_MQTT_LINK_ID] = pvPortMalloc(WIFI_RX_BUF_SIZE);
+	if (wifiLinkdata.data_buf[WIFI_MQTT_LINK_ID] == NULL)
+	{
+		Error("%s apply ram for MQTT data buffer failed!\n", pcTaskGetName(xTaskGetCurrentTaskHandle()));
+		vTaskDelay(DELAY_BASE_SEC_TIME * 5);
+		goto MQTT_APPLY_RAM;
+	}
 
 	MQTT_START:
+	//TODO 获取模组当前状态，是否连入wifi，方式，查询ip
 
 	xEventGroupWaitBits(wifiEventHandler, EVENTBIT_WIFI_CONNECTED_AP, pdFALSE, pdFALSE, portMAX_DELAY);
 
 	xSemaphoreTake(wifiSemaphoreMutexHandle, portMAX_DELAY);
+
+	if (DIS_CON_AP == get_wifi_status())
+	{
+		xEventGroupClearBits(wifiEventHandler, EVENTBIT_WIFI_CONNECTED_AP);
+		xEventGroupSetBits(wifiEventHandler, EVENTBIT_WIFI_DIS_ING_AP);
+		xSemaphoreGive(wifiSemaphoreMutexHandle);
+
+		goto MQTT_START;
+	}
+
 	Client_Connect();
 	xSemaphoreGive(wifiSemaphoreMutexHandle);
 
@@ -637,10 +698,8 @@ void mqtt_keepAlive_thread(void *pvParameters)
 
 			//suspend rec task, so the task will not get the EVENTBIT_WIFI_UART_REC event
 			vTaskSuspend(RECV_Handle);
-			pingReq = MQTT_PingReq(0);
+			pingReq = MQTT_PingReq(WIFI_MQTT_LINK_ID);
 			vTaskResume(RECV_Handle);
-
-			xSemaphoreGive(wifiSemaphoreMutexHandle);
 
 			if (pingReq < 0)
 			{
@@ -648,28 +707,36 @@ void mqtt_keepAlive_thread(void *pvParameters)
 				xEventGroupClearBits(wifiEventHandler, EVENTBIT_WIFI_LINK_0);
 				goto MQTT_CLOSE;
 			}
+			xSemaphoreGive(wifiSemaphoreMutexHandle);
 			Debug("send heartbeat suc\n");
 		}
 	}
 
-	MQTT_CLOSE: transport_close(0);
+	MQTT_CLOSE:
+
+	transport_close(WIFI_MQTT_LINK_ID);
+	xSemaphoreGive(wifiSemaphoreMutexHandle);
 	goto MQTT_START;
 }
 
 void mqtt_thread_init(void)
 {
-	AR_Mqtt_HB_TimerHandle = xTimerCreate("mqtt_heartbeat_timer", HEARTBEAT_TIMER, pdTRUE, (void *) 1, AutoReloadCallback);
+	AR_Mqtt_HB_TimerHandle = xTimerCreate("mqtt_heartbeat_timer", HEARTBEAT_TIMER, pdTRUE, (void *) 1,
+			AutoReloadCallback);
 
 	wifiSemaphoreMutexHandle = xSemaphoreCreateMutex();
-	xTaskCreate(mqtt_send_thread, "mqtt_send_thread", (configMINIMAL_STACK_SIZE * 16), NULL, (tskIDLE_PRIORITY + 3),
-			&SEND_Handle);
+
+
 
 	xTaskCreate(mqtt_recv_thread, "mqtt_recv_thread", (configMINIMAL_STACK_SIZE * 8), NULL, (tskIDLE_PRIORITY + 3),
 			&RECV_Handle);
 
 	xTaskCreate(mqtt_keepAlive_thread, "mqtt_keepAlive_thread", (configMINIMAL_STACK_SIZE * 8), NULL,
-			(tskIDLE_PRIORITY + 4), &KEEP_Handle);
-
+			(tskIDLE_PRIORITY + 5), &KEEP_Handle);
+#if 1
+	xTaskCreate(mqtt_send_thread, "mqtt_send_thread", (configMINIMAL_STACK_SIZE * 8), NULL, (tskIDLE_PRIORITY + 4),
+			&SEND_Handle);
+#endif
 	if (AR_Mqtt_HB_TimerHandle == NULL || wifiSemaphoreMutexHandle == NULL)
 	{
 		printf("create timer or wifi semaphore mutex failed!\n");

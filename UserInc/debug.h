@@ -17,7 +17,7 @@
 /*************/
 
 #define DEBUG
-
+#define SYS_ERROR
 //void funNull(const uint8_t *pData);
 
 #ifdef DEBUG
@@ -26,7 +26,11 @@
 #define Debug(...)
 #endif
 
-
+#ifdef SYS_ERROR
+#define Error(...) 	printf(__VA_ARGS__)
+#else
+#define Error(...)
+#endif
 
 
 #endif /* USERINC_DEBUG_H_ */

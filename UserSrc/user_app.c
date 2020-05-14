@@ -31,9 +31,9 @@ void app_os_var_init()
 
 void app_task_init(void)
 {
-	xTaskCreate(wifi_task, "wifiTask", (configMINIMAL_STACK_SIZE * 8), NULL, (tskIDLE_PRIORITY + 3), &WIFI_Handle);
+	xTaskCreate(wifi_task, "wifiTask", (configMINIMAL_STACK_SIZE * 8), NULL, (tskIDLE_PRIORITY + 5), &WIFI_Handle);
 
-	xTaskCreate(wifi_uart_msg_distribute_task, "distributeTask", (configMINIMAL_STACK_SIZE * 4), NULL,
+	xTaskCreate(wifi_uart_msg_distribute_task, "distributeTask", (configMINIMAL_STACK_SIZE * 8), NULL,
 			(tskIDLE_PRIORITY + 5), &DIST_Handle);
 	mqtt_thread_init();
 
