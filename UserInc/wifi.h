@@ -22,6 +22,7 @@ extern SemaphoreHandle_t wifiSemaphoreMutexHandle;
 void wifi_Handle();
 
 void wifi_AP_task();
+void sntp_rtc_task();
 void distribute_msg(void);
 
 

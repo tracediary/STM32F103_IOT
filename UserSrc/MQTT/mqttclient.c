@@ -512,7 +512,7 @@ void Client_Connect(void)
 	}
 #endif
 	Debug("connect to Aliyun \n");
-	xEventGroupSetBits(wifiEventHandler, EVENTBIT_WIFI_LINK_0);
+	xEventGroupSetBits(wifiEventHandler, wifi_link[WIFI_MQTT_LINK_ID]);
 
 }
 
@@ -543,15 +543,17 @@ void mqtt_recv_thread(void *pvParameters)
 
 	while (1)
 	{
-		eventValue = xEventGroupWaitBits(wifiEventHandler, (EVENTBIT_WIFI_LINK_0_READY | EVENTBIT_WIFI_LINK_0), pdFALSE,
+		eventValue = xEventGroupWaitBits(wifiEventHandler,
+				(wifi_link_ready[WIFI_MQTT_LINK_ID] | wifi_link[WIFI_MQTT_LINK_ID]),
+				pdFALSE,
 		pdTRUE, portMAX_DELAY);
 
-		if ((eventValue & (EVENTBIT_WIFI_LINK_0_READY | EVENTBIT_WIFI_LINK_0)) == 0)
+		if ((eventValue & (wifi_link_ready[WIFI_MQTT_LINK_ID] | wifi_link[WIFI_MQTT_LINK_ID])) == 0)
 		{
 			printf("wait mqtt info rec\n");
 			continue;
 		}
-		xEventGroupClearBits(wifiEventHandler, EVENTBIT_WIFI_LINK_0_READY);
+		xEventGroupClearBits(wifiEventHandler, wifi_link_ready[WIFI_MQTT_LINK_ID]);
 		err = xSemaphoreTake(wifiSemaphoreMutexHandle, (WIFI_UART_WAITTIME * 4));
 		if (err == pdFALSE)
 		{
@@ -586,7 +588,7 @@ void mqtt_send_thread(void *pvParameters)
 
 		//TODO 完善发送任务
 
-		xEventGroupWaitBits(wifiEventHandler, EVENTBIT_WIFI_LINK_0, pdFALSE, pdFALSE, portMAX_DELAY);
+		xEventGroupWaitBits(wifiEventHandler, wifi_link[WIFI_MQTT_LINK_ID], pdFALSE, pdFALSE, portMAX_DELAY);
 		//xReturn = xQueueReceive(MQTT_Data_Queue, &recv_data, 1000);
 
 		vTaskDelay(3000);
@@ -655,6 +657,8 @@ void mqtt_keepAlive_thread(void *pvParameters)
 		goto MQTT_APPLY_RAM;
 	}
 
+	wifiLinkdata.maxLenth[WIFI_MQTT_LINK_ID] = WIFI_RX_BUF_SIZE;
+
 	MQTT_START:
 	//TODO 获取模组当前状态，是否连入wifi，方式，查询ip
 
@@ -674,7 +678,7 @@ void mqtt_keepAlive_thread(void *pvParameters)
 	Client_Connect();
 	xSemaphoreGive(wifiSemaphoreMutexHandle);
 
-	xEventGroupSetBits(wifiEventHandler, EVENTBIT_WIFI_LINK_0);
+	xEventGroupSetBits(wifiEventHandler, wifi_link[WIFI_MQTT_LINK_ID]);
 
 	xTimerStart(AR_Mqtt_HB_TimerHandle, 0);
 	while (1)
@@ -682,7 +686,7 @@ void mqtt_keepAlive_thread(void *pvParameters)
 		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
 		eventValue = xEventGroupGetBits(wifiEventHandler);
-		if ((eventValue & EVENTBIT_WIFI_LINK_0) == 0)
+		if ((eventValue & wifi_link[WIFI_MQTT_LINK_ID]) == 0)
 		{
 			printf("MQTT disconnect, go to close the link first\n");
 			goto MQTT_CLOSE;
@@ -696,6 +700,8 @@ void mqtt_keepAlive_thread(void *pvParameters)
 				continue;
 			}
 
+			get_wifi_status();
+
 			//suspend rec task, so the task will not get the EVENTBIT_WIFI_UART_REC event
 			vTaskSuspend(RECV_Handle);
 			pingReq = MQTT_PingReq(WIFI_MQTT_LINK_ID);
@@ -704,7 +710,7 @@ void mqtt_keepAlive_thread(void *pvParameters)
 			if (pingReq < 0)
 			{
 				printf("send heartbeat failed, go to close the link first\n");
-				xEventGroupClearBits(wifiEventHandler, EVENTBIT_WIFI_LINK_0);
+				xEventGroupClearBits(wifiEventHandler, wifi_link[WIFI_MQTT_LINK_ID]);
 				goto MQTT_CLOSE;
 			}
 			xSemaphoreGive(wifiSemaphoreMutexHandle);
@@ -733,10 +739,9 @@ void mqtt_thread_init(void)
 
 	xTaskCreate(mqtt_keepAlive_thread, "mqtt_keepAlive_thread", (configMINIMAL_STACK_SIZE * 8), NULL,
 			(tskIDLE_PRIORITY + 5), &KEEP_Handle);
-#if 1
+
 	xTaskCreate(mqtt_send_thread, "mqtt_send_thread", (configMINIMAL_STACK_SIZE * 8), NULL, (tskIDLE_PRIORITY + 4),
 			&SEND_Handle);
-#endif
 	if (AR_Mqtt_HB_TimerHandle == NULL || wifiSemaphoreMutexHandle == NULL)
 	{
 		printf("create timer or wifi semaphore mutex failed!\n");

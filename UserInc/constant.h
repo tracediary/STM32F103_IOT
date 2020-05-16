@@ -17,6 +17,10 @@
 
 #define DELAY_BASE_SEC_TIME				(DELAY_BASE_10MIL_TIME * 100)
 
+#define DELAY_BASE_MIN_TIME				(DELAY_BASE_SEC_TIME * 60)
+
+#define TIME_ZONE						8
+
 /**WIFI define start*****************************************************/
 #define DEFAULT_SSID					"siweiwuhen"
 #define DEFAULT_PWD						"763505660cqu"
@@ -31,7 +35,7 @@
 #define WIFI_MAX_LINK					5
 
 #define WIFI_MQTT_LINK_ID				0
-#define WIFI_TCP1_LINK_ID				1
+#define WIFI_SNTP_LINK_ID				1
 #define WIFI_TCP2_LINK_ID				2
 #define WIFI_UDP1_LINK_ID				3
 #define WIFI_UDP2_LINK_ID				4
@@ -63,18 +67,18 @@
 
 /**WIFI define end*****************************************************/
 
-/**********DEBUG UART2 define************/
+/**********DEBUG UART2 define start************************************/
 #define DEBUG_RX_BUF_SIZE				100
 #define DEBUG_TX_BUF_SIZE				(1024)
 #define DEBUG_UART						USART2
 #define EVENTBIT_DEBUG_UART_REC			(1<<0)
 #define EVENTBIT_DEBUG_UART_TC			(1<<1)
+/**********DEBUG UART2 define end**************************************/
+
+/**********system define start*****************************************/
+
+#define EVENTBIT_SYS_SYNC_TIME			(1<<0)
 
 
-
-
-
-
-
-
+/**********system define end*******************************************/
 #endif /* CONSTANT_H_ */

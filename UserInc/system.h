@@ -36,6 +36,8 @@ typedef struct _WIFI_LINK_INFO
 	uint32_t lenth[WIFI_MAX_LINK];
 	uint8_t *data_buf[WIFI_MAX_LINK];
 
+	uint32_t maxLenth[WIFI_MAX_LINK];
+
 } WifiLinkInfo_S;
 
 

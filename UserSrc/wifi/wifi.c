@@ -14,10 +14,8 @@
 #include "wifiUtil.h"
 #include "transport.h"
 #include "sys_util.h"
-
-
-
-
+#include "time_transform.h"
+#include "rtc.h"
 /********wifi function start****************************************/
 
 void wifi_hardware_start();
@@ -27,10 +25,13 @@ bool wifi_set_mux();
 void wifi_restart();
 WIFI_UART_RSP_E wifi_send_uart(char * buffer, char * sucInfo, char * errInfo, uint32_t waittime, bool flag);
 void wifi_mqtt_link_event_callback();
-void wifi_tcp_link1_event_callback();
+void wifi_sntp_link1_event_callback();
 void wifi_tcp_link2_event_callback();
 void wifi_udp_link1_event_callback();
 void wifi_udp_link2_event_callback();
+bool syncTime(uint8_t *timeBuf, int timeZone);
+void setRtcTime();
+void SntpSyncTimeCallback(void const * argument);
 /********wifi function end******************************************/
 
 /*******FreeRTOS para start**********************/
@@ -39,11 +40,12 @@ EventGroupHandle_t wifiEventHandler = NULL;
 SemaphoreHandle_t wifiBusySemaphoreMutexHandle = NULL;
 SemaphoreHandle_t wifiSemaphoreMutexHandle = NULL;
 
+TimerHandle_t SNTP_TimerHandle = NULL;
+
 extern TaskHandle_t KEEP_Handle;
-
+extern TaskHandle_t SNTP_Handle;
+extern EventGroupHandle_t sysEventHandler;
 /*******FreeRTOS para end**********************/
-
-
 
 /********wifi para start**********************/
 WifiUsartData_S wifiData;
@@ -53,22 +55,20 @@ WIFI_AP_SECRET_S wifiAPSecret = { DEFAULT_SSID, DEFAULT_PWD };
 
 WifiLinkInfo_S wifiLinkdata;
 
-
 const uint32_t wifi_link_ready[WIFI_MAX_LINK] = { EVENTBIT_WIFI_LINK_0_READY, EVENTBIT_WIFI_LINK_1_READY,
 EVENTBIT_WIFI_LINK_2_READY, EVENTBIT_WIFI_LINK_3_READY, EVENTBIT_WIFI_LINK_4_READY };
 
-const uint8_t wifi_link[WIFI_MAX_LINK] = { EVENTBIT_WIFI_LINK_0, EVENTBIT_WIFI_LINK_1, EVENTBIT_WIFI_LINK_2,
+const uint32_t wifi_link[WIFI_MAX_LINK] = { EVENTBIT_WIFI_LINK_0, EVENTBIT_WIFI_LINK_1, EVENTBIT_WIFI_LINK_2,
 EVENTBIT_WIFI_LINK_3, EVENTBIT_WIFI_LINK_4 };
 
 const void (*link_Callback[WIFI_MAX_LINK])(void)=
 {
 	[WIFI_MQTT_LINK_ID] = wifi_mqtt_link_event_callback,
-	[WIFI_TCP1_LINK_ID] = wifi_tcp_link1_event_callback,
+	[WIFI_SNTP_LINK_ID] = wifi_sntp_link1_event_callback,
 	[WIFI_TCP2_LINK_ID] = wifi_tcp_link2_event_callback,
-	[WIFI_UDP1_LINK_ID] = wifi_tcp_link1_event_callback,
-	[WIFI_UDP2_LINK_ID] = wifi_tcp_link2_event_callback
+	[WIFI_UDP1_LINK_ID] = wifi_udp_link1_event_callback,
+	[WIFI_UDP2_LINK_ID] = wifi_udp_link2_event_callback
 };
-
 
 /********wifi para end**********************/
 
@@ -82,6 +82,10 @@ void wifi_Handle()
 
 	HAL_UART_Receive_DMA(wifiUart, wifiData.netUsartRxBuffer[!wifiData.index], WIFI_RX_BUF_SIZE);
 	wifi_uart_curdata_addr = wifiData.netUsartRxBuffer[wifiData.index];
+
+	SNTP_TimerHandle = xTimerCreate("SNTP_circle_timer", (DELAY_BASE_MIN_TIME * 60 * 24), pdTRUE, (void *) 2,
+			SntpSyncTimeCallback);
+
 }
 
 void wifi_AP_task()
@@ -146,15 +150,13 @@ void wifi_AP_task()
 			while (1)
 			{
 				eventValue = xEventGroupWaitBits(wifiEventHandler, (EVENTBIT_WIFI_DIS_AP | EVENTBIT_WIFI_DIS_ING_AP),
-						pdFALSE, pdFALSE,
-						(WIFI_UART_WAITTIME * 20));
+						pdFALSE, pdFALSE, portMAX_DELAY);
 				if (((eventValue & EVENTBIT_WIFI_DIS_ING_AP) != 0) || ((eventValue & EVENTBIT_WIFI_DIS_AP) != 0))
 				{
 					printf("wifi disconnect, re-connect!\n");
 					break;
 				}
-				//TODO 非透传模式，检查是否连上AP。透传模式下，什么都不做
-				;
+				Debug("nothing happened!\n");
 			}
 			ap_status = DIS_CONNECTING;
 			xEventGroupClearBits(wifiEventHandler,
@@ -186,7 +188,6 @@ void wifi_restart()
 	wifi_send_cmd("AT+RST", "OK", NULL, (WIFI_UART_WAITTIME * 4));
 	vTaskDelay(3000);
 }
-
 
 void wifi_hardware_start()
 {
@@ -285,7 +286,109 @@ bool wifi_set_mux()
 
 }
 
+void sntp_rtc_task()
+{
+	while (1)
+	{
+		xEventGroupWaitBits(wifiEventHandler, EVENTBIT_WIFI_CONNECTED_AP, pdFALSE, pdFALSE, portMAX_DELAY);
+		Debug("start to sync time\n");
 
+		wifiLinkdata.data_buf[WIFI_SNTP_LINK_ID] = pvPortMalloc(WIFI_NORMAL_BUF_SIZE * 2);
+		if (wifiLinkdata.data_buf[WIFI_SNTP_LINK_ID] == NULL)
+		{
+			Error("%s apply ram for SNTP data buffer failed!\n", pcTaskGetName(xTaskGetCurrentTaskHandle()));
+			vTaskDelay(DELAY_BASE_MIN_TIME);
+
+			continue;
+		}
+		wifiLinkdata.maxLenth[WIFI_SNTP_LINK_ID] = WIFI_NORMAL_BUF_SIZE * 2;
+
+		setRtcTime();
+
+		vPortFree(wifiLinkdata.data_buf[WIFI_SNTP_LINK_ID]);
+		Debug("end to sync time\n");
+
+		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+	}
+}
+
+void setRtcTime()
+{
+	uint8_t buf[WIFI_NORMAL_BUF_SIZE] = { 0 };
+	BaseType_t err = pdFALSE;
+	EventBits_t eventValue;
+
+
+	SET_RTC_TIME:
+
+	err = xSemaphoreTake(wifiSemaphoreMutexHandle, (WIFI_UART_WAITTIME * 10));
+	if (err == pdFALSE)
+	{
+		Debug("get wifiSemaphoreMutexHandle failed, wait next time\n");
+		goto SYS_EVENT;
+	}
+
+	if (!syncTime(buf, TIME_ZONE))
+	{
+		xSemaphoreGive(wifiSemaphoreMutexHandle);
+		goto SYS_EVENT;
+	}
+
+	if (!RTC_Set_RealTime(buf))
+	{
+		xSemaphoreGive(wifiSemaphoreMutexHandle);
+		goto SYS_EVENT;
+	}
+
+	xEventGroupSetBits(sysEventHandler, EVENTBIT_SYS_SYNC_TIME);
+	xSemaphoreGive(wifiSemaphoreMutexHandle);
+	return;
+
+	SYS_EVENT:
+
+	eventValue = xEventGroupGetBits(sysEventHandler);
+	if ((eventValue & EVENTBIT_SYS_SYNC_TIME) != 0)
+	{
+		return;
+	}
+	//1 minute later, sync time again
+
+	vTaskDelay(DELAY_BASE_MIN_TIME);
+	goto SET_RTC_TIME;
+
+
+}
+
+bool syncTime(uint8_t *timeBuf, int timeZone)
+{
+	char cmd[WIFI_NORMAL_BUF_SIZE * 2] = { 0 };
+	EventBits_t eventValue = 0;
+
+	if (SUC != waitWifiAvailable())
+	{
+		return false;
+	}
+
+	sprintf(cmd, "AT+CIPSTART=%d,\"TCP\",\"time.nist.gov\",13", WIFI_SNTP_LINK_ID);
+
+	xEventGroupClearBits(wifiEventHandler, wifi_link_ready[WIFI_SNTP_LINK_ID]);
+	wifi_send_cmd(cmd, NULL, NULL, 0);
+
+	eventValue = xEventGroupWaitBits(wifiEventHandler, wifi_link_ready[WIFI_SNTP_LINK_ID], pdTRUE, pdFALSE,
+			(WIFI_UART_WAITTIME * 4));
+	if ((eventValue & wifi_link_ready[WIFI_SNTP_LINK_ID]) == 0)
+	{
+		Error("sync time failed, wait next time\n");
+		return false;
+	}
+
+	strncpy(timeBuf, (strstr(wifiLinkdata.data_buf[WIFI_SNTP_LINK_ID], " ") + 1), (WIFI_NORMAL_BUF_SIZE - 1));
+
+	GetDateTimeFromUTC(timeBuf, timeZone);
+
+	return true;
+
+}
 
 void distribute_msg(void)
 {
@@ -330,6 +433,13 @@ void distribute_msg(void)
 				len = len * 10 + (*wifi_uart_str - '0');
 				wifi_uart_str++;
 			}
+
+			if (len > (wifiLinkdata.maxLenth - 1))
+			{
+				Error("this data too long than the buffer, desert data\n");
+				continue;
+			}
+
 			wifi_uart_str++;
 
 			memset(wifiLinkdata.data_buf[link_ID], 0, (len + 1));
@@ -399,11 +509,17 @@ void distribute_msg(void)
 
 }
 
+void SntpSyncTimeCallback(void const * argument)
+{
+	xTaskNotifyGive(SNTP_Handle);
+}
+
+
 void wifi_mqtt_link_event_callback()
 {
 	xTaskNotifyGive(KEEP_Handle);
 }
-void wifi_tcp_link1_event_callback()
+void wifi_sntp_link1_event_callback()
 {
 	;
 }
@@ -419,5 +535,4 @@ void wifi_udp_link2_event_callback()
 {
 	;
 }
-
 

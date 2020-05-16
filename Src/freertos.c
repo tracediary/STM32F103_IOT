@@ -30,6 +30,8 @@
 #include "user_app.h"
 #include "Debug.h"
 #include "system.h"
+#include "iwdg.h"
+#include "rtc.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -228,7 +230,10 @@ void StartDefaultTask(void const * argument)
 	/* Infinite loop */
 	while (1)
 	{
-		osDelay(100);
+		feedDog();
+		Debug("feed Dog\n");
+		getRealTime();
+		osDelay(20000);
 	}
 
   /* USER CODE END StartDefaultTask */

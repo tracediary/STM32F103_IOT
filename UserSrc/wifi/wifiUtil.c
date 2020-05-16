@@ -10,13 +10,11 @@
 #include "wifiUtil.h"
 #include "usart.h"
 
-
-
 extern TaskHandle_t wifiAPTaskHandle;
 extern EventGroupHandle_t wifiEventHandler;
 
-WIFI_UART_RSP_E wifi_send_uart(char * buffer, char * sucInfo1, char * sucInfo2, char * errInfo,
-		uint32_t len, uint32_t waittime, bool flag)
+WIFI_UART_RSP_E wifi_send_uart(char * buffer, char * sucInfo1, char * sucInfo2, char * errInfo, uint32_t len,
+		uint32_t waittime, bool flag)
 {
 	EventBits_t eventValue;
 	uint8_t txData[WIFI_NORMAL_BUF_SIZE] = { 0 };
@@ -113,7 +111,6 @@ WIFI_UART_RSP_E wifi_send_uart(char * buffer, char * sucInfo1, char * sucInfo2, 
 		return BUSY;
 	}
 
-
 	printf("WIFI UART get the error response\n");
 
 	return ERR;
@@ -131,8 +128,7 @@ WIFI_UART_RSP_E wifi_send_cmd(char * buffer, char * sucInfo, char * errInfo, uin
 	return wifi_send_uart(buffer, sucInfo, NULL, errInfo, 0, waittime, true);
 }
 
-WIFI_UART_RSP_E wifi_send_cmd_mux(char * buffer, char * sucInfo1, char * sucInfo2, char * errInfo,
-		uint32_t waittime)
+WIFI_UART_RSP_E wifi_send_cmd_mux(char * buffer, char * sucInfo1, char * sucInfo2, char * errInfo, uint32_t waittime)
 {
 	return wifi_send_uart(buffer, sucInfo1, sucInfo2, errInfo, 0, waittime, true);
 }
@@ -142,57 +138,61 @@ WIFI_UART_RSP_E wifi_send_data(char * buffer, char * sucInfo, char * errInfo, ui
 	return wifi_send_uart(buffer, sucInfo, NULL, errInfo, 0, waittime, false);
 }
 
-WIFI_UART_RSP_E wifi_send_ascii_data_cmd(char * buffer, char * sucInfo, char * errInfo, uint32_t len,
-		uint32_t waittime)
+WIFI_UART_RSP_E wifi_send_ascii_data_cmd(char * buffer, char * sucInfo, char * errInfo, uint32_t len, uint32_t waittime)
 {
 	return wifi_send_uart(buffer, sucInfo, NULL, errInfo, len, waittime, false);
 }
 
 WIFI_STATUS_E get_wifi_status()
 {
-	uint8_t repeatTime = 0;
-	const uint8_t maxTime = 10;
-	WIFI_UART_RSP_E wifi_status_rsp;
-
-
-	GET_STATUS:
-
-
-	wifi_status_rsp = wifi_send_cmd("AT+CIPSTATUS", "STATUS:", NULL, (WIFI_UART_WAITTIME * 4));
-	if (SUC == wifi_status_rsp)
+	if (SUC != waitWifiAvailable())
 	{
-		if (strstr(wifi_uart_curdata_addr, "STATUS:2"))
-		{
-			return CON_AP;
-		}
-		else if (strstr(wifi_uart_curdata_addr, "STATUS:3"))
-		{
-			return CON_TCP_UDP;
-		}
-		else if (strstr(wifi_uart_curdata_addr, "STATUS:4"))
-		{
-			return DIS_CON_TCP_UDP;
-		}
-		else if (strstr(wifi_uart_curdata_addr, "STATUS:5"))
-		{
-			return DIS_CON_AP;
-		}
+		return DIS_CON_AP;
 	}
-	else if (BUSY == wifi_status_rsp && repeatTime++ < maxTime)
+
+	wifi_send_cmd("AT+CIPSTATUS", "STATUS:", NULL, (WIFI_UART_WAITTIME * 4));
+
+	if (strstr(wifi_uart_curdata_addr, "STATUS:2"))
 	{
-		vTaskDelay(DELAY_BASE_SEC_TIME * 4);
-		goto GET_STATUS;
+		return CON_AP;
 	}
-	else
+	else if (strstr(wifi_uart_curdata_addr, "STATUS:3"))
+	{
+		return CON_TCP_UDP;
+	}
+	else if (strstr(wifi_uart_curdata_addr, "STATUS:4"))
+	{
+		return DIS_CON_TCP_UDP;
+	}
+	else if (strstr(wifi_uart_curdata_addr, "STATUS:5"))
 	{
 		return DIS_CON_AP;
 	}
 
 }
 
+WIFI_UART_RSP_E waitWifiAvailable()
+{
+	uint8_t repeatTime = 0;
+	const uint8_t maxTime = 5;
+	WIFI_UART_RSP_E wifi_status_rsp;
 
+	WIFI_STATUS:
 
+	wifi_status_rsp = wifi_send_cmd("AT+CIPSTATUS", "OK", NULL, WIFI_UART_WAITTIME);
+	if (SUC == wifi_status_rsp)
+	{
+		return SUC;
+	}
+	else if (BUSY == wifi_status_rsp && repeatTime++ < maxTime)
+	{
+		vTaskDelay(DELAY_BASE_SEC_TIME * 4);
+		goto WIFI_STATUS;
+	}
+	else
+	{
+		return ERR;
+	}
 
-
-
+}
 

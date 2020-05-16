@@ -20,8 +20,10 @@ WIFI_UART_RSP_E wifi_send_cmd_mux(char * buffer, char * sucInfo1, char * sucInfo
 WIFI_UART_RSP_E wifi_send_data(char * buffer, char * sucInfo, char * errInfo, uint32_t waittime);
 WIFI_UART_RSP_E wifi_send_ascii_data_cmd(char * buffer, char * sucInfo, char * errInfo, uint32_t len, uint32_t waittime);
 WIFI_STATUS_E get_wifi_status();
+WIFI_UART_RSP_E waitWifiAvailable();
 
 extern uint8_t * wifi_uart_curdata_addr;
 extern WifiLinkInfo_S wifiLinkdata;
 extern const uint32_t wifi_link_ready[WIFI_MAX_LINK];
+extern const uint32_t wifi_link[WIFI_MAX_LINK];
 #endif /* USERINC_WIFIUTIL_H_ */

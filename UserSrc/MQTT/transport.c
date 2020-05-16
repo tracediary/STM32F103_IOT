@@ -75,7 +75,7 @@ int transport_sendPacketBuffer(unsigned char* buf, int buflen)
 		return -1;
 	}
 
-	rsp = wifi_send_ascii_data_cmd(buf, "SEND OK", "SEND FAIL", buflen, WIFI_UART_WAITTIME);
+	rsp = wifi_send_ascii_data_cmd(buf, "SEND OK", "SEND FAIL", buflen, (WIFI_UART_WAITTIME * 8));
 //	rsp = wifi_send_ascii_data_cmd(buf, NULL, NULL, buflen, WIFI_UART_WAITTIME);
 	if (rsp != SUC)
 	{
